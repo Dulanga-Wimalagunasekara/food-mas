@@ -4,8 +4,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: "Dulangaroot"
       MYSQL_DATABASE: "foodmas"
-      MYSQL_USER: "root"
-      MYSQL_PASSWORD: "Dulangaroot"
     ports:
       - "3306:3306"
     volumes:
