@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+traces/
+logs/
+data/
+*.db
+*.jsonl
+docs/report.pdf
+docs/workflow_diagram.png

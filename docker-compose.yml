@@ -1,0 +1,88 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: foodmas
+      MYSQL_USER: foodmas
+      MYSQL_PASSWORD: foodmas_secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ufoodmas", "-pfoodmas_secret"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+  ollama-pull:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: >
+      sh -c "
+        sleep 10 &&
+        ollama pull qwen2.5:7b-instruct
+      "
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: on-failure
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: foodmas
+      MYSQL_PASSWORD: foodmas_secret
+      MYSQL_DATABASE: foodmas
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:7b-instruct
+      OLLAMA_FALLBACK_MODEL: llama3.1:8b-instruct-q5_K_M
+      CHECKPOINT_DB_PATH: /app/data/checkpoints.db
+      LOG_LEVEL: INFO
+      TRACE_DIR: /app/traces
+      LOG_DIR: /app/logs
+    volumes:
+      - app_data:/app/data
+      - app_traces:/app/traces
+      - app_logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  mysql_data:
+  ollama_data:
+  app_data:
+  app_traces:
+  app_logs:
