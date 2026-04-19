@@ -13,3 +13,4 @@ data/
 *.jsonl
 docs/report.pdf
 docs/workflow_diagram.png
+.hypothesis/
