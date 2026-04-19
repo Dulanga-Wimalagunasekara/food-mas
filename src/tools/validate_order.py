@@ -63,7 +63,13 @@ def validate_order(inp: ValidateOrderInput) -> Result[ValidateOrderOutput, ToolE
                 select(MenuItem).where(MenuItem.id.in_(item_ids))
             ).scalars().all()
 
-        db_by_id: dict[int, MenuItem] = {r.id: r for r in rows}
+            db_by_id: dict[int, dict] = {
+                r.id: {
+                    "in_stock": r.in_stock,
+                    "dietary_tags": r.dietary_tags if isinstance(r.dietary_tags, list) else [],
+                }
+                for r in rows
+            }
 
         stock_failures: list[str] = []
         dietary_violations: list[str] = []
@@ -71,12 +77,11 @@ def validate_order(inp: ValidateOrderInput) -> Result[ValidateOrderOutput, ToolE
 
         for item in inp.items:
             db_row = db_by_id.get(item.item_id)
-            if db_row is None or not db_row.in_stock:
+            if db_row is None or not db_row["in_stock"]:
                 stock_failures.append(item.name)
 
             if db_row is not None:
-                tags = db_row.dietary_tags if isinstance(db_row.dietary_tags, list) else []
-                if exclude_set.intersection(tags):
+                if exclude_set.intersection(db_row["dietary_tags"]):
                     dietary_violations.append(item.name)
 
         subtotal = sum(item.price * item.quantity for item in inp.items)

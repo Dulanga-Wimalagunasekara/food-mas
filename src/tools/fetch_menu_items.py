@@ -62,22 +62,22 @@ def fetch_menu_items(inp: FetchMenuItemsInput) -> Result[FetchMenuItemsOutput, T
             )
             rows = session.execute(stmt).scalars().all()
 
-        exclude_set = set(inp.dietary_exclude)
-        items = [
-            MenuItemRecord(
-                id=row.id,
-                name=row.name,
-                description=row.description or "",
-                price=float(row.price),
-                category=row.category,
-                dietary_tags=row.dietary_tags if isinstance(row.dietary_tags, list) else [],
-                in_stock=row.in_stock,
-            )
-            for row in rows
-            if not exclude_set.intersection(
-                row.dietary_tags if isinstance(row.dietary_tags, list) else []
-            )
-        ]
+            exclude_set = set(inp.dietary_exclude)
+            items = [
+                MenuItemRecord(
+                    id=row.id,
+                    name=row.name,
+                    description=row.description or "",
+                    price=float(row.price),
+                    category=row.category,
+                    dietary_tags=row.dietary_tags if isinstance(row.dietary_tags, list) else [],
+                    in_stock=row.in_stock,
+                )
+                for row in rows
+                if not exclude_set.intersection(
+                    row.dietary_tags if isinstance(row.dietary_tags, list) else []
+                )
+            ]
 
         return Ok(FetchMenuItemsOutput(items=items))
 

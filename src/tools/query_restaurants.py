@@ -61,18 +61,18 @@ def query_restaurants(inp: QueryRestaurantsInput) -> Result[QueryRestaurantsOutp
             stmt = stmt.order_by(Restaurant.rating.desc()).limit(inp.limit)
             rows = session.execute(stmt).scalars().all()
 
-        candidates = [
-            RestaurantCandidate(
-                id=r.id,
-                name=r.name,
-                cuisine=r.cuisine,
-                rating=float(r.rating),
-                delivery_fee=float(r.delivery_fee),
-                avg_delivery_min=r.avg_delivery_min,
-                match_score=0.5,
-            )
-            for r in rows
-        ]
+            candidates = [
+                RestaurantCandidate(
+                    id=r.id,
+                    name=r.name,
+                    cuisine=r.cuisine,
+                    rating=float(r.rating),
+                    delivery_fee=float(r.delivery_fee),
+                    avg_delivery_min=r.avg_delivery_min,
+                    match_score=0.5,
+                )
+                for r in rows
+            ]
         return Ok(QueryRestaurantsOutput(restaurants=candidates))
 
     except Exception as exc:
