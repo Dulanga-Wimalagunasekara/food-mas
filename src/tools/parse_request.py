@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -93,7 +94,7 @@ class ParseRequestOutput(BaseModel):
     cuisines: list[str]
     dietary_exclude: list[str]
     dietary_require: list[str]
-    spice_preference: str | None
+    spice_preference: Optional[str]
     city: str
 
 
@@ -146,7 +147,7 @@ def parse_request(inp: ParseRequestInput) -> Result[ParseRequestOutput, ToolErro
     ))
 
 
-def _extract_budget(text: str) -> float | None:
+def _extract_budget(text: str) -> Optional[float]:
     # Currency prefix then number + optional k — lookahead ensures we stop at word boundary
     m = re.search(r"(?:lkr|rs\.?|rupees?)\s*([0-9][0-9,]*(?:\.[0-9]+)?)(k)?(?=[\s,.]|$)", text)
     if m:
@@ -224,7 +225,7 @@ def _extract_dietary_require(text: str) -> list[str]:
     return sorted(found)
 
 
-def _extract_spice(text: str) -> str | None:
+def _extract_spice(text: str) -> Optional[str]:
     for keyword, level in SPICE_MAP.items():
         if keyword in text:
             return level

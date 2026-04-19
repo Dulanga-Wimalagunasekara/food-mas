@@ -1,18 +1,16 @@
-from __future__ import annotations
-
 import operator
-from typing import Annotated
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ParsedRequest(BaseModel):
     budget_lkr: float
     party_size: int
-    cuisines: list[str]          # e.g. ["sri_lankan", "indian"]
-    dietary_exclude: list[str]   # e.g. ["seafood", "pork"]
-    dietary_require: list[str]   # e.g. ["vegetarian"]
-    spice_preference: str | None # "mild" | "medium" | "hot" | None
+    cuisines: list[str]
+    dietary_exclude: list[str]
+    dietary_require: list[str]
+    spice_preference: Optional[str]
     city: str
 
 
@@ -23,7 +21,7 @@ class RestaurantCandidate(BaseModel):
     rating: float
     delivery_fee: float
     avg_delivery_min: int
-    match_score: float           # 0-1, computed by finder
+    match_score: float
 
 
 class SelectedItem(BaseModel):
@@ -43,12 +41,12 @@ class OrderSummary(BaseModel):
     tax: float
     total: float
     within_budget: bool
-    rationale: str               # short natural-language explanation
+    rationale: str
 
 
 class AgentError(BaseModel):
     agent: str
-    kind: str                    # "validation" | "tool_failure" | "llm_refusal"
+    kind: str
     message: str
     recoverable: bool
 
@@ -56,10 +54,10 @@ class AgentError(BaseModel):
 class GraphState(BaseModel):
     trace_id: str
     user_input: str
-    parsed: ParsedRequest | None = None
+    parsed: Optional[ParsedRequest] = None
     candidates: list[RestaurantCandidate] = []
-    chosen_restaurant_id: int | None = None
+    chosen_restaurant_id: Optional[int] = None
     selected_items: list[SelectedItem] = []
-    order: OrderSummary | None = None
+    order: Optional[OrderSummary] = None
     errors: Annotated[list[AgentError], operator.add] = []
     retries: dict[str, int] = {}
