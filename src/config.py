@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     # MySQL
     mysql_host: str = "mysql"
     mysql_port: int = 3306
-    mysql_user: str = "foodmas"
-    mysql_password: str = "foodmas_secret"
+    mysql_user: str = "root"
+    mysql_password: str = "Dulangaroot"
     mysql_database: str = "foodmas"
 
     # Ollama

@@ -188,6 +188,8 @@ def _extract_party_size(text: str) -> int:
         r"for\s+([0-9]+|two|three|four|five|six)\s+(?:people|persons?|pax|of\s+us)",
         r"([0-9]+|two|three|four|five|six)\s+(?:people|persons?|pax)",
         r"party\s+of\s+([0-9]+|two|three|four|five|six)",
+        # "for two" / "for 2" at end of phrase or before punctuation
+        r"for\s+([0-9]+|two|three|four|five|six)(?=\s*[,.]|\s*$)",
     ]
     word_map = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
     for pat in patterns:
