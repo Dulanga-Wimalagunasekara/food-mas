@@ -1,256 +1,512 @@
-"""Streamlit UI for the Smart Food Ordering Assistant."""
+"""FoodMAS — production-ready Streamlit UI."""
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any
 
 import streamlit as st
 
-# ---------------------------------------------------------------------------
-# Page config (must be first Streamlit call)
-# ---------------------------------------------------------------------------
+# ── Page config (must be first Streamlit call) ───────────────────────────────
 st.set_page_config(
-    page_title="Smart Food Ordering Assistant",
-    page_icon="🍛",
+    page_title="FoodMAS · Smart Food Ordering",
+    page_icon="🍽️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# ---------------------------------------------------------------------------
-# Custom CSS
-# ---------------------------------------------------------------------------
+# ── Consume auto-request BEFORE any rendering ────────────────────────────────
+_auto_request: str | None = st.session_state.pop("_auto_request", None)
+
+# ── Global styles ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  /* Dark background */
-  .stApp { background-color: #1a1a1a; color: #f0f0f0; }
+/* ── Base ── */
+.stApp { background: #080808; }
+.block-container {
+    max-width: 820px !important;
+    padding: 0 1.5rem 4rem 1.5rem !important;
+    margin: 0 auto;
+}
+section[data-testid="stSidebar"],
+header[data-testid="stHeader"],
+div[data-testid="stDecoration"],
+div[data-testid="stStatusWidget"],
+#MainMenu, footer { display: none !important; }
 
-  /* Sidebar */
-  [data-testid="stSidebar"] { background-color: #111111; }
+/* ── Hero ── */
+.hero {
+    text-align: center;
+    padding: 3rem 0 2rem 0;
+}
+.hero-logo { font-size: 3.2rem; line-height: 1; }
+.hero-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0.5rem 0 0 0;
+    letter-spacing: -0.03em;
+}
+.hero-sub { color: #555; font-size: 0.95rem; margin-top: 0.35rem; }
 
-  /* Agent trace cards */
-  .agent-card {
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin: 8px 0;
-    font-family: monospace;
-    font-size: 13px;
-  }
-  .agent-queued  { background: #2a2a2a; color: #888; border-left: 4px solid #555; }
-  .agent-running { background: #2a1a00; color: #ffa500; border-left: 4px solid #ffa500; }
-  .agent-done    { background: #0a2a0a; color: #6fdc6f; border-left: 4px solid #4caf50; }
-  .agent-error   { background: #2a0a0a; color: #ff6b6b; border-left: 4px solid #f44336; }
+/* ── Input card ── */
+.input-card {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 18px;
+    padding: 1.5rem 1.75rem;
+}
+.stTextArea label { display: none; }
+.stTextArea textarea {
+    background: #0a0a0a !important;
+    color: #eee !important;
+    border: 1.5px solid #2a2a2a !important;
+    border-radius: 10px !important;
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+    resize: none !important;
+    caret-color: #ff9500;
+}
+.stTextArea textarea:focus {
+    border-color: #ff9500 !important;
+    box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.12) !important;
+    outline: none !important;
+}
+.stTextArea textarea::placeholder { color: #3a3a3a !important; }
 
-  /* Order summary card */
-  .order-card {
-    background: #1e1e1e;
-    border: 1px solid #ff9800;
-    border-radius: 12px;
-    padding: 24px;
-    margin-top: 16px;
-  }
-  .order-title { color: #ff9800; font-size: 20px; font-weight: bold; margin-bottom: 12px; }
-  .within-budget { background: #1b5e20; color: #a5d6a7; padding: 4px 12px; border-radius: 20px; font-size: 13px; }
-  .over-budget   { background: #b71c1c; color: #ffcdd2; padding: 4px 12px; border-radius: 20px; font-size: 13px; }
-  .item-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #333; }
-  .total-row { display: flex; justify-content: space-between; padding: 10px 0; font-weight: bold; color: #ff9800; font-size: 16px; }
-  .rationale { color: #bbb; font-style: italic; margin-top: 12px; font-size: 14px; }
+/* ── Chip label ── */
+.chip-label { color: #3a3a3a; font-size: 0.75rem; margin: 1rem 0 0.4rem 0; }
 
-  /* Input box */
-  .stTextArea textarea { background: #2a2a2a; color: #f0f0f0; border: 1px solid #444; border-radius: 8px; }
+/* ── Chip buttons ── */
+div[data-testid="column"] .stButton > button {
+    background: #131313 !important;
+    color: #555 !important;
+    border: 1px solid #222 !important;
+    border-radius: 999px !important;
+    padding: 4px 10px !important;
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.15s !important;
+    width: 100% !important;
+}
+div[data-testid="column"] .stButton > button:hover {
+    background: #1a1000 !important;
+    color: #ff9500 !important;
+    border-color: #ff9500 !important;
+}
 
-  /* Button */
-  .stButton > button {
-    background: linear-gradient(135deg, #ff9800, #f57c00);
-    color: #000;
-    font-weight: bold;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 32px;
-    font-size: 15px;
-  }
-  .stButton > button:hover { background: linear-gradient(135deg, #ffb74d, #ff9800); }
+/* ── Primary submit button ── */
+.submit-row .stButton > button,
+div[data-testid="stButton-primary"] > button {
+    background: linear-gradient(135deg, #ff9500 0%, #e07800 100%) !important;
+    color: #000 !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    border: none !important;
+    border-radius: 10px !important;
+    padding: 0.7rem 2rem !important;
+    width: 100% !important;
+    margin-top: 1rem;
+    transition: opacity 0.18s !important;
+    letter-spacing: 0.01em;
+}
+.submit-row .stButton > button:hover { opacity: 0.86 !important; }
+
+/* ── Agent pipeline ── */
+.pipeline-outer {
+    background: #0e0e0e;
+    border: 1px solid #1e1e1e;
+    border-radius: 18px;
+    padding: 1.75rem 1.25rem 1.5rem 1.25rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+}
+.pipeline-title {
+    color: #333;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+.pipeline-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    min-width: 540px;
+}
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 110px;
+    max-width: 160px;
+}
+.step-bubble {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.35rem;
+    border: 2px solid;
+    transition: all 0.35s ease;
+    position: relative;
+}
+.step-name {
+    font-size: 0.68rem;
+    font-weight: 700;
+    margin-top: 9px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: color 0.35s;
+}
+.step-desc { font-size: 0.65rem; margin-top: 3px; text-align: center; color: #333; }
+
+/* connector */
+.conn {
+    flex: 0 0 28px;
+    height: 2px;
+    position: relative;
+    top: -22px;
+    transition: background 0.35s;
+}
+
+/* State: pending */
+.s-pending .step-bubble { background: #0d0d0d; border-color: #222; color: #2a2a2a; }
+.s-pending .step-name   { color: #2a2a2a; }
+
+/* State: active */
+.s-active .step-bubble {
+    background: #1a0f00;
+    border-color: #ff9500;
+    color: #ff9500;
+    box-shadow: 0 0 14px rgba(255,149,0,0.35);
+    animation: beat 1.1s ease-in-out infinite;
+}
+.s-active .step-name { color: #ff9500; }
+
+/* State: done */
+.s-done .step-bubble { background: #071207; border-color: #30d158; color: #30d158; }
+.s-done .step-name   { color: #30d158; }
+
+/* State: error */
+.s-error .step-bubble { background: #180606; border-color: #ff453a; color: #ff453a; }
+.s-error .step-name   { color: #ff453a; }
+
+/* Connectors */
+.conn-pending { background: #1e1e1e; }
+.conn-active  { background: linear-gradient(90deg, #30d158, #ff9500); }
+.conn-done    { background: #30d158; }
+
+@keyframes beat {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,149,0,0.5); }
+    50%       { box-shadow: 0 0 0 10px rgba(255,149,0,0); }
+}
+
+/* ── Order card ── */
+.order-card {
+    background: #0e0e0e;
+    border: 1px solid #1e1e1e;
+    border-radius: 18px;
+    padding: 1.75rem 2rem;
+    margin-top: 0.25rem;
+}
+.order-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1.25rem;
+}
+.rest-name { color: #fff; font-size: 1.18rem; font-weight: 700; }
+.badge-ok {
+    background: #071407; color: #30d158;
+    border: 1px solid #1a4a1a;
+    padding: 3px 12px; border-radius: 999px;
+    font-size: 0.76rem; font-weight: 600;
+}
+.badge-over {
+    background: #1a0707; color: #ff453a;
+    border: 1px solid #4a1a1a;
+    padding: 3px 12px; border-radius: 999px;
+    font-size: 0.76rem; font-weight: 600;
+}
+.sep { border: none; border-top: 1px solid #1a1a1a; margin: 0.65rem 0; }
+.line { display: flex; justify-content: space-between; padding: 4px 0; color: #666; font-size: 0.9rem; }
+.line span:last-child { color: #bbb; font-variant-numeric: tabular-nums; }
+.line-bold { display: flex; justify-content: space-between; padding: 8px 0 2px 0; font-weight: 700; font-size: 1.05rem; color: #fff; }
+.line-bold span:last-child { color: #ff9500; }
+.rationale { color: #3a3a3a; font-size: 0.82rem; font-style: italic; margin-top: 1.1rem; padding-top: 0.85rem; border-top: 1px solid #161616; line-height: 1.6; }
+
+/* ── Error box ── */
+.err-box {
+    background: #120808;
+    border: 1px solid #3a1a1a;
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    color: #ff6b6b;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-top: 0.5rem;
+}
+
+/* ── Reset / new order button ── */
+.new-order-wrap .stButton > button {
+    background: transparent !important;
+    color: #444 !important;
+    border: 1px solid #222 !important;
+    border-radius: 10px !important;
+    font-size: 0.88rem !important;
+    padding: 0.5rem 1.25rem !important;
+    margin-top: 1.25rem;
+    width: auto !important;
+    transition: all 0.15s !important;
+}
+.new-order-wrap .stButton > button:hover {
+    color: #ff9500 !important;
+    border-color: #ff9500 !important;
+    background: #1a1000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown("## ⚙️ System Status")
 
-    from src.config import settings
-    st.markdown(f"**Model:** `{settings.ollama_model}`")
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-    from src.db.session import check_connection
-    db_ok = check_connection()
-    db_color = "#4caf50" if db_ok else "#f44336"
-    db_label = "Connected" if db_ok else "Disconnected"
-    st.markdown(f"**MySQL:** <span style='color:{db_color}'>{db_label}</span>", unsafe_allow_html=True)
+PIPELINE_STEPS = [
+    ("planner",           "🧠", "Understanding",   "Parsing your request"),
+    ("restaurant_finder", "🔍", "Searching",        "Finding restaurants"),
+    ("menu_selector",     "🍽️",  "Building meal",    "Selecting dishes"),
+    ("order_validator",   "✅", "Confirming",       "Reviewing totals"),
+]
+STEP_KEYS = [s[0] for s in PIPELINE_STEPS]
 
-    if "trace_id" in st.session_state and st.session_state.trace_id:
-        st.markdown(f"**Trace ID:** `{st.session_state.trace_id}`")
+EXAMPLES = [
+    "LKR 3000 for two, spicy Sri Lankan, no seafood",
+    "Vegetarian Indian, budget Rs 2000",
+    "Japanese for two, LKR 5000",
+    "Italian dinner, 3 people, LKR 6000, no pork",
+    "BBQ American, Rs 4000, Colombo",
+]
 
-    st.divider()
-    st.markdown("**Example requests:**")
-    examples = [
-        "LKR 3000 for two people, spicy Sri Lankan, no seafood",
-        "Budget 2500 rupees, vegetarian Indian for one",
-        "Rs 4000 Italian food, 3 people, no pork",
-        "5000 LKR Japanese for two",
-    ]
-    for ex in examples:
-        if st.button(ex, key=f"ex_{ex[:20]}", use_container_width=True):
-            st.session_state.prefill = ex
 
-# ---------------------------------------------------------------------------
-# Header
-# ---------------------------------------------------------------------------
+def _pipeline_html(states: dict[str, str]) -> str:
+    parts: list[str] = []
+    for i, (key, icon, name, desc) in enumerate(PIPELINE_STEPS):
+        status = states.get(key, "pending")
+        # connector
+        if i > 0:
+            prev_status = states.get(STEP_KEYS[i - 1], "pending")
+            conn_cls = (
+                "conn-done"    if prev_status == "done" else
+                "conn-active"  if prev_status == "active" else
+                "conn-pending"
+            )
+            parts.append(f'<div class="conn {conn_cls}"></div>')
+        parts.append(f"""
+<div class="step s-{status}">
+  <div class="step-bubble">{icon}</div>
+  <div class="step-name">{name}</div>
+  <div class="step-desc">{desc}</div>
+</div>""")
+
+    return (
+        '<div class="pipeline-outer">'
+        '<div class="pipeline-title">AI Agent Workflow</div>'
+        '<div class="pipeline-row">' + "".join(parts) + "</div>"
+        "</div>"
+    )
+
+
+def _order_html(order: Any) -> str:
+    from src.state import OrderSummary
+    o: OrderSummary = OrderSummary(**order) if isinstance(order, dict) else order
+    badge = (
+        '<span class="badge-ok">✓ Within budget</span>'
+        if o.within_budget
+        else '<span class="badge-over">⚠ Over budget</span>'
+    )
+    items_rows = "".join(
+        f'<div class="line"><span>{it.name}'
+        + (f' <span style="color:#333">×{it.quantity}</span>' if it.quantity > 1 else "")
+        + f"</span><span>LKR {it.price * it.quantity:,.0f}</span></div>"
+        for it in o.items
+    )
+    return f"""
+<div class="order-card">
+  <div class="order-head">
+    <div class="rest-name">🏪 {o.restaurant_name}</div>
+    {badge}
+  </div>
+  {items_rows}
+  <hr class="sep"/>
+  <div class="line"><span>Delivery fee</span><span>LKR {o.delivery_fee:,.0f}</span></div>
+  <div class="line"><span>Tax (10%)</span><span>LKR {o.tax:,.0f}</span></div>
+  <hr class="sep"/>
+  <div class="line-bold"><span>Total</span><span>LKR {o.total:,.0f}</span></div>
+  <div class="rationale">💬 {o.rationale}</div>
+</div>"""
+
+
+# ── Session defaults ──────────────────────────────────────────────────────────
+for _k, _v in [("phase", "idle"), ("final_order", None), ("pipeline_states", None)]:
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
+
+
+# ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style='text-align:center; padding: 16px 0 8px 0;'>
-  <span style='font-size:48px'>🍛🍜🍕🍣🍔</span><br/>
-  <h1 style='color:#ff9800; margin:4px 0;'>Smart Food Ordering Assistant</h1>
-  <p style='color:#888; font-size:15px;'>Powered by local Ollama · LangGraph multi-agent system</p>
+<div class="hero">
+  <div class="hero-logo">🍽️</div>
+  <div class="hero-title">FoodMAS</div>
+  <div class="hero-sub">Tell us what you're craving — our AI agents handle the rest.</div>
 </div>
 """, unsafe_allow_html=True)
 
-st.divider()
 
-# ---------------------------------------------------------------------------
-# Layout: input left, trace right
-# ---------------------------------------------------------------------------
-col_input, col_trace = st.columns([1, 1], gap="large")
+# ── Input section ─────────────────────────────────────────────────────────────
+pipeline_slot = st.empty()
+result_slot   = st.empty()
 
-AGENT_LABELS = {
-    "planner": "🧠 Planner — parsing your request",
-    "restaurant_finder": "🔍 Restaurant Finder — searching options",
-    "menu_selector": "🍽️ Menu Selector — choosing your dishes",
-    "order_validator": "✅ Order Validator — confirming order",
-    "error": "❌ Error handler",
-}
-
-with col_input:
-    st.markdown("### 📝 Your Order Request")
-    prefill = st.session_state.pop("prefill", "") if "prefill" in st.session_state else ""
-    user_input = st.text_area(
-        label="Describe what you want",
-        value=prefill,
-        height=120,
-        placeholder="e.g. I have LKR 3000 for two people, craving spicy Sri Lankan, no seafood",
-        label_visibility="collapsed",
+# Always re-render the pipeline and result if already computed
+if st.session_state.phase == "done" and st.session_state.pipeline_states:
+    pipeline_slot.markdown(
+        _pipeline_html(st.session_state.pipeline_states), unsafe_allow_html=True
     )
-    submit = st.button("🍽️ Find My Order", use_container_width=True)
+if st.session_state.phase == "done" and st.session_state.final_order:
+    result_slot.markdown(
+        _order_html(st.session_state.final_order), unsafe_allow_html=True
+    )
+if st.session_state.phase == "error" and st.session_state.pipeline_states:
+    pipeline_slot.markdown(
+        _pipeline_html(st.session_state.pipeline_states), unsafe_allow_html=True
+    )
 
-with col_trace:
-    st.markdown("### 🤖 Agent Activity")
-    trace_container = st.empty()
+# ── New-order button when result is visible ───────────────────────────────────
+if st.session_state.phase in ("done", "error"):
+    st.markdown('<div class="new-order-wrap">', unsafe_allow_html=True)
+    if st.button("← New order"):
+        st.session_state.phase = "idle"
+        st.session_state.final_order = None
+        st.session_state.pipeline_states = None
+        pipeline_slot.empty()
+        result_slot.empty()
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Order result area (below columns)
-# ---------------------------------------------------------------------------
-order_container = st.empty()
+# ── Input form (visible only in idle / error phase) ───────────────────────────
+if st.session_state.phase in ("idle", "error"):
+    user_input = st.text_area(
+        label="order",
+        height=96,
+        placeholder="e.g. LKR 3000 for two people — spicy Sri Lankan food, no seafood",
+    )
 
-# ---------------------------------------------------------------------------
-# Run graph on submit
-# ---------------------------------------------------------------------------
-if submit and user_input.strip():
+    st.markdown('<div class="chip-label">✨ Quick ideas — click to order instantly</div>', unsafe_allow_html=True)
+    chip_cols = st.columns(len(EXAMPLES))
+    for col, ex in zip(chip_cols, EXAMPLES):
+        with col:
+            short = ex if len(ex) <= 26 else ex[:24] + "…"
+            if st.button(short, key=f"chip_{ex[:14]}"):
+                st.session_state["_auto_request"] = ex
+                st.rerun()
+
+    st.markdown('<div class="submit-row">', unsafe_allow_html=True)
+    submit = st.button("Find My Order →")
+    st.markdown("</div>", unsafe_allow_html=True)
+else:
+    user_input, submit = "", False
+
+
+# ── Execute ───────────────────────────────────────────────────────────────────
+request_text: str | None = (
+    _auto_request
+    or (user_input.strip() if submit and user_input.strip() else None)
+)
+
+if request_text and st.session_state.phase in ("idle", "error"):
     tid = str(uuid.uuid4())[:8]
-    st.session_state.trace_id = tid
+    agent_states: dict[str, str] = {k: "pending" for k in STEP_KEYS}
 
-    agent_states: dict[str, str] = {k: "queued" for k in AGENT_LABELS}
-    agent_outputs: dict[str, Any] = {}
-
-    def render_trace():
-        lines = []
-        for node, label in AGENT_LABELS.items():
-            status = agent_states.get(node, "queued")
-            css = f"agent-{status}"
-            icon = {"queued": "⏳", "running": "⚡", "done": "✅", "error": "❌"}.get(status, "")
-            lines.append(f'<div class="agent-card {css}">{icon} {label}</div>')
-        trace_container.markdown("\n".join(lines), unsafe_allow_html=True)
-
-    render_trace()
+    pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
+    result_slot.empty()
 
     from src.graph import build_graph
     from src.state import GraphState
 
     try:
         graph = build_graph()
-        initial = GraphState(trace_id=tid, user_input=user_input)
-        config = {"configurable": {"thread_id": tid}}
-
+        initial = GraphState(trace_id=tid, user_input=request_text)
+        config  = {"configurable": {"thread_id": tid}}
         final_order = None
 
         for event in graph.stream(initial.model_dump(), config=config):
             for node_name, node_output in event.items():
-                if node_name in agent_states:
-                    # Mark previous nodes done
-                    for prev in list(agent_states.keys()):
-                        if prev == node_name:
-                            break
-                        if agent_states[prev] == "running":
-                            agent_states[prev] = "done"
+                if node_name not in STEP_KEYS:
+                    continue
 
-                    agent_states[node_name] = "running"
-                    render_trace()
+                # Mark all preceding steps done
+                for prev in STEP_KEYS:
+                    if prev == node_name:
+                        break
+                    if agent_states[prev] in ("pending", "active"):
+                        agent_states[prev] = "done"
 
-                    agent_outputs[node_name] = node_output
+                has_err = bool(node_output.get("errors"))
+                agent_states[node_name] = "error" if has_err else "active"
+                pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
 
-                    # Check for errors
-                    if node_output.get("errors"):
-                        agent_states[node_name] = "error"
-                    else:
-                        agent_states[node_name] = "done"
+                time.sleep(0.4)  # hold "active" state briefly so user sees it
 
-                    # Capture final order
-                    if node_output.get("order"):
-                        final_order = node_output["order"]
+                agent_states[node_name] = "error" if has_err else "done"
+                pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
 
-                    render_trace()
+                if node_output.get("order"):
+                    final_order = node_output["order"]
 
-        # Mark all still-queued as done (they were skipped/not needed)
-        for node in agent_states:
-            if agent_states[node] == "queued":
-                agent_states[node] = "done"
-        render_trace()
+        # Resolve any still-pending steps
+        for k in STEP_KEYS:
+            if agent_states[k] == "pending":
+                agent_states[k] = "done"
+        pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
 
-        # ---------------------------------------------------------------------------
-        # Render order card
-        # ---------------------------------------------------------------------------
+        st.session_state.pipeline_states = agent_states
+
         if final_order:
-            from src.state import OrderSummary
-            order: OrderSummary = (
-                OrderSummary(**final_order) if isinstance(final_order, dict) else final_order
-            )
-            budget_badge = (
-                '<span class="within-budget">✓ Within Budget</span>'
-                if order.within_budget
-                else '<span class="over-budget">⚠ Over Budget</span>'
-            )
-            items_html = "".join(
-                f'<div class="item-row"><span>{i.name} × {i.quantity}</span>'
-                f'<span>LKR {i.price * i.quantity:,.2f}</span></div>'
-                for i in order.items
-            )
-            order_html = f"""
-<div class="order-card">
-  <div class="order-title">🏪 {order.restaurant_name} &nbsp; {budget_badge}</div>
-  {items_html}
-  <div class="item-row"><span>Delivery</span><span>LKR {order.delivery_fee:,.2f}</span></div>
-  <div class="item-row"><span>Tax (10%)</span><span>LKR {order.tax:,.2f}</span></div>
-  <div class="total-row"><span>Total</span><span>LKR {order.total:,.2f}</span></div>
-  <div class="rationale">💬 {order.rationale}</div>
-</div>
-"""
-            order_container.markdown(order_html, unsafe_allow_html=True)
+            st.session_state.phase       = "done"
+            st.session_state.final_order = final_order
+            result_slot.markdown(_order_html(final_order), unsafe_allow_html=True)
+            # Show new-order button without full rerun
+            st.rerun()
         else:
-            order_container.error("No valid order could be constructed for your request. Try relaxing your constraints or increasing the budget.")
+            st.session_state.phase = "error"
+            result_slot.markdown("""
+<div class="err-box">
+  😕 No match found for your request.<br/>
+  Try a higher budget, a different cuisine, or fewer dietary restrictions.
+</div>""", unsafe_allow_html=True)
+            st.rerun()
 
     except Exception as exc:
-        for node in agent_states:
-            if agent_states[node] in ("running", "queued"):
-                agent_states[node] = "error"
-        render_trace()
-        order_container.error(f"System error: {exc}")
+        for k in STEP_KEYS:
+            if agent_states.get(k) in ("pending", "active"):
+                agent_states[k] = "error"
+        pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
+        st.session_state.phase = "error"
+        st.session_state.pipeline_states = agent_states
+        result_slot.markdown(f"""
+<div class="err-box">
+  Something went wrong — please try again.<br/>
+  <span style="color:#522">{exc}</span>
+</div>""", unsafe_allow_html=True)
+        st.rerun()
 
 elif submit and not user_input.strip():
-    st.warning("Please enter your food order request.")
+    st.warning("Please describe what you'd like to eat.")
