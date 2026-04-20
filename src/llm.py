@@ -26,6 +26,7 @@ def _primary() -> ChatOllama:
             base_url=settings.ollama_host,
             format="json",
             temperature=0.1,
+            request_timeout=120,
         )
     return _PRIMARY_MODEL
 
@@ -38,6 +39,7 @@ def _fallback() -> ChatOllama:
             base_url=settings.ollama_host,
             format="json",
             temperature=0.1,
+            request_timeout=120,
         )
     return _FALLBACK_MODEL
 

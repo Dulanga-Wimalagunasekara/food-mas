@@ -37,7 +37,7 @@ services:
     entrypoint:
       - sh
       - -c
-      - "sleep 10 && ollama pull 'qwen2.5:7b-instruct'"
+      - "sleep 10 && ollama pull 'qwen2.5:1.5b'"
     depends_on:
       ollama:
         condition: service_healthy
@@ -56,8 +56,8 @@ services:
       MYSQL_PASSWORD: "Dulangaroot"
       MYSQL_DATABASE: "foodmas"
       OLLAMA_HOST: "http://ollama:11434"
-      OLLAMA_MODEL: "qwen2.5:7b-instruct"
-      OLLAMA_FALLBACK_MODEL: "llama3.1:8b-instruct-q5_K_M"
+      OLLAMA_MODEL: "qwen2.5:1.5b"
+      OLLAMA_FALLBACK_MODEL: "qwen2.5:1.5b"
       CHECKPOINT_DB_PATH: "/app/data/checkpoints.db"
       LOG_LEVEL: "INFO"
       TRACE_DIR: "/app/traces"
