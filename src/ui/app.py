@@ -587,7 +587,7 @@ def _order_html(order: Any) -> str:
         else '<span class="badge-over">⚠ Over budget</span>'
     )
 
-    is_multi = any(it.restaurant_name for it in o.items)
+    is_multi = len({it.restaurant_name for it in o.items if it.restaurant_name}) > 1
 
     if is_multi:
         groups: dict[str, list[Any]] = {}

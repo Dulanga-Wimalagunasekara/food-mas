@@ -10,11 +10,12 @@ from src.state import AgentError, GraphState, OrderSummary
 from src.tools.validate_order import ValidateOrderInput, validate_order
 
 SYSTEM_PROMPT = """You are a friendly food ordering assistant writing a short order confirmation.
-Given a validated order summary, write a 2-sentence rationale explaining why this selection is good for the user.
-Be specific: mention the restaurant name, total cost, and a key feature (e.g. spice level, dietary fit, value).
+Given a validated order summary, write ONE sentence explaining why this selection is a great match for the user.
+Focus only on qualitative aspects: cuisine fit, restaurant quality, dietary match, spice level, variety.
+Do NOT mention any prices, totals, fees, or numbers — those are shown separately in the UI.
 
-Output a JSON object with a single key "rationale" containing the 2-sentence string.
-Example: {"rationale": "We selected Laksala Kitchen for its top-rated spicy Sri Lankan menu that perfectly matches your preferences. Your order of Kottu Roti and Chicken Curry totals LKR 2,380 including delivery, well within your LKR 3,000 budget."}"""
+Output a JSON object with a single key "rationale" containing that single sentence.
+Example: {"rationale": "We chose Laksala Kitchen for its top-rated spicy Sri Lankan menu that perfectly matches your taste and dietary preferences."}"""
 
 
 class RationaleResponse(BaseModel):
@@ -97,6 +98,12 @@ def run_order_validator(state: GraphState) -> dict:
         f"Dietary issues: {validation.dietary_violations}."
     )
 
+    budget_status = "within" if order.within_budget else "over"
+    cost_line = (
+        f"Your order totals LKR {order.total:,.0f} ({budget_status} your "
+        f"LKR {parsed.budget_lkr:,.0f} budget), including delivery and tax."
+    )
+
     try:
         llm_response = invoke_structured(
             llm=get_llm(temperature=0.1),
@@ -109,12 +116,9 @@ def run_order_validator(state: GraphState) -> dict:
             agent="order_validator",
             max_retries=2,
         )
-        rationale = llm_response.rationale
+        rationale = f"{llm_response.rationale} {cost_line}"
     except ValueError:
-        rationale = (
-            f"Your order from {restaurant_name} totals LKR {order.total:.2f} "
-            f"({'within' if order.within_budget else 'over'} your LKR {parsed.budget_lkr:.0f} budget)."
-        )
+        rationale = cost_line
 
     final_order = OrderSummary(**{**order.model_dump(), "rationale": rationale})
 
