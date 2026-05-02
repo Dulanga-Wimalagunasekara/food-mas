@@ -37,6 +37,7 @@ def _select_items_for(
     trace_id: str,
 ) -> list[SelectedItem]:
     """Select menu items from a single restaurant for the given sub-request."""
+    restaurant_name = next((c.name for c in candidates if c.id == restaurant_id), "")
     delivery_fee = next(
         (c.delivery_fee for c in candidates if c.id == restaurant_id), 150.0
     )
@@ -106,6 +107,7 @@ def _select_items_for(
                     price=price_map[sel.item_id],
                     quantity=max(1, sel.quantity),
                     dietary_tags=tag_map[sel.item_id],
+                    restaurant_name=restaurant_name,
                 ))
 
             actual_total = sum(i.price * i.quantity for i in verified)
@@ -123,6 +125,7 @@ def _select_items_for(
                 selected.append(SelectedItem(
                     item_id=item.id, name=item.name, price=item.price,
                     quantity=1, dietary_tags=item.dietary_tags,
+                    restaurant_name=restaurant_name,
                 ))
                 break
 

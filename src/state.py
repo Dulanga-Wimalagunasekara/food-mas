@@ -31,6 +31,7 @@ class SelectedItem(BaseModel):
     price: float
     quantity: int
     dietary_tags: list[str]
+    restaurant_name: str = ""
 
 
 class OrderSummary(BaseModel):

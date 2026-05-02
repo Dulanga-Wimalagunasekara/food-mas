@@ -244,6 +244,8 @@ div[data-testid="stButton-primary"] > button {
 .line-bold { display: flex; justify-content: space-between; padding: 8px 0 2px 0; font-weight: 700; font-size: 1.05rem; color: #fff; }
 .line-bold span:last-child { color: #ff9500; }
 .rationale { color: #3a3a3a; font-size: 0.82rem; font-style: italic; margin-top: 1.1rem; padding-top: 0.85rem; border-top: 1px solid #161616; line-height: 1.6; }
+.rest-section { color: #888; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.9rem 0 0.3rem 0; }
+.rest-section:first-of-type { padding-top: 0; }
 
 /* ── Error box ── */
 .err-box {
@@ -325,6 +327,14 @@ def _pipeline_html(states: dict[str, str]) -> str:
     )
 
 
+def _item_row(it: Any) -> str:
+    qty = f' <span style="color:#333">×{it.quantity}</span>' if it.quantity > 1 else ""
+    return (
+        f'<div class="line"><span>{it.name}{qty}</span>'
+        f'<span>LKR {it.price * it.quantity:,.0f}</span></div>'
+    )
+
+
 def _order_html(order: Any) -> str:
     from src.state import OrderSummary
     o: OrderSummary = OrderSummary(**order) if isinstance(order, dict) else order
@@ -333,19 +343,33 @@ def _order_html(order: Any) -> str:
         if o.within_budget
         else '<span class="badge-over">⚠ Over budget</span>'
     )
-    items_rows = "".join(
-        f'<div class="line"><span>{it.name}'
-        + (f' <span style="color:#333">×{it.quantity}</span>' if it.quantity > 1 else "")
-        + f"</span><span>LKR {it.price * it.quantity:,.0f}</span></div>"
-        for it in o.items
-    )
+
+    is_multi = any(it.restaurant_name for it in o.items)
+
+    if is_multi:
+        # Group items by restaurant, preserving insertion order
+        groups: dict[str, list[Any]] = {}
+        for it in o.items:
+            key = it.restaurant_name or "Other"
+            groups.setdefault(key, []).append(it)
+
+        items_html = ""
+        for rest_name, items in groups.items():
+            items_html += f'<div class="rest-section">🏪 {rest_name}</div>'
+            items_html += "".join(_item_row(it) for it in items)
+
+        header_name = "Multi-Restaurant Order"
+    else:
+        items_html = "".join(_item_row(it) for it in o.items)
+        header_name = o.restaurant_name
+
     return f"""
 <div class="order-card">
   <div class="order-head">
-    <div class="rest-name">🏪 {o.restaurant_name}</div>
+    <div class="rest-name">{'🍽️' if is_multi else '🏪'} {header_name}</div>
     {badge}
   </div>
-  {items_rows}
+  {items_html}
   <hr class="sep"/>
   <div class="line"><span>Delivery fee</span><span>LKR {o.delivery_fee:,.0f}</span></div>
   <div class="line"><span>Tax (10%)</span><span>LKR {o.tax:,.0f}</span></div>
