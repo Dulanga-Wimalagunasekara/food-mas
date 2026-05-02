@@ -79,24 +79,22 @@ def validate_order(inp: ValidateOrderInput) -> Result[ValidateOrderOutput, ToolE
             db_row = db_by_id.get(item.item_id)
             if db_row is None or not db_row["in_stock"]:
                 stock_failures.append(item.name)
+            if db_row is not None and exclude_set.intersection(db_row["dietary_tags"]):
+                dietary_violations.append(item.name)
 
-            if db_row is not None:
-                if exclude_set.intersection(db_row["dietary_tags"]):
-                    dietary_violations.append(item.name)
+        # Remove out-of-stock and dietary-violating items before calculating totals
+        bad_names = set(stock_failures) | set(dietary_violations)
+        valid_items = [i for i in inp.items if i.name not in bad_names]
 
-        subtotal = sum(item.price * item.quantity for item in inp.items)
+        subtotal = sum(item.price * item.quantity for item in valid_items)
         tax = round(subtotal * TAX_RATE, 2)
         total = round(subtotal + inp.delivery_fee + tax, 2)
-        within_budget = (
-            total <= inp.budget_lkr
-            and not stock_failures
-            and not dietary_violations
-        )
+        within_budget = total <= inp.budget_lkr  # purely financial
 
         order = OrderSummary(
             restaurant_id=inp.restaurant_id,
             restaurant_name=inp.restaurant_name,
-            items=inp.items,
+            items=valid_items,
             subtotal=round(subtotal, 2),
             delivery_fee=inp.delivery_fee,
             tax=tax,
