@@ -25,7 +25,7 @@ st.markdown("""
 
 /* ── Tokens ── */
 :root {
-    color-scheme: light;
+    color-scheme: only light;
     --bg-base:    #F7F7F4;
     --surface:    #FFFFFF;
     --surface-2:  #F1F3EE;
@@ -143,10 +143,22 @@ textarea:focus-visible {
 }
 
 /* ── Chip buttons ── */
+html body .stApp div[data-testid="column"] button[kind="secondary"][data-testid="stBaseButton-secondary"],
+html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"],
+html body .stApp div[data-testid="stColumn"] button[kind="secondary"][data-testid="stBaseButton-secondary"],
+html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"],
+div[data-testid="column"] div[data-testid="stButton"] > button,
+div[data-testid="stColumn"] div[data-testid="stButton"] > button,
 div[data-testid="column"] .stButton > button {
     min-height: 44px !important;
+    color-scheme: only light !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
     background: var(--surface) !important;
+    background-color: var(--surface) !important;
+    background-image: none !important;
     color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
     border: 1px solid var(--edge-1) !important;
     border-radius: var(--r-sm) !important;
     padding: 0.55rem 0.75rem !important;
@@ -159,23 +171,58 @@ div[data-testid="column"] .stButton > button {
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
                 transform 0.15s ease !important;
     width: 100% !important;
+    box-shadow: 0 1px 2px rgba(23, 26, 22, 0.04) !important;
 }
+html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"] *,
+html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"] p,
+html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"] *,
+html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"] p {
+    background: transparent !important;
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+}
+html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"]:active,
+html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"]:active,
+div[data-testid="column"] div[data-testid="stButton"] > button:active,
+div[data-testid="stColumn"] div[data-testid="stButton"] > button:active,
 div[data-testid="column"] .stButton > button:active {
     transform: scale(0.98) !important;
 }
 @media (hover: hover) and (pointer: fine) {
+    html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"]:hover,
+    html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"]:hover,
+    div[data-testid="column"] div[data-testid="stButton"] > button:hover,
+    div[data-testid="stColumn"] div[data-testid="stButton"] > button:hover,
     div[data-testid="column"] .stButton > button:hover {
         background: var(--accent-dim) !important;
+        background-color: var(--accent-dim) !important;
+        background-image: none !important;
         color: var(--accent-2) !important;
+        -webkit-text-fill-color: var(--accent-2) !important;
         border-color: #B8CDBF !important;
+    }
+    html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"]:hover *,
+    html body .stApp div[data-testid="column"] button[data-testid="stBaseButton-secondary"]:hover p,
+    html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"]:hover *,
+    html body .stApp div[data-testid="stColumn"] button[data-testid="stBaseButton-secondary"]:hover p {
+        color: var(--accent-2) !important;
+        -webkit-text-fill-color: var(--accent-2) !important;
     }
 }
 
 /* ── Submit button ── */
+html body .stApp button[kind="primary"][data-testid="stBaseButton-primary"],
+html body .stApp button[data-testid="stBaseButton-primary"],
 .submit-row .stButton > button {
     min-height: 48px !important;
+    color-scheme: only light !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
     background: var(--accent) !important;
+    background-color: var(--accent) !important;
+    background-image: none !important;
     color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
     font-weight: 700 !important;
     font-size: 0.93rem !important;
     font-family: var(--font-ui) !important;
@@ -187,12 +234,27 @@ div[data-testid="column"] .stButton > button:active {
     transition: background-color 0.15s ease, transform 0.15s ease !important;
     box-shadow: none !important;
 }
+html body .stApp button[data-testid="stBaseButton-primary"] *,
+html body .stApp button[data-testid="stBaseButton-primary"] p {
+    background: transparent !important;
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+}
+html body .stApp button[data-testid="stBaseButton-primary"]:active,
 .submit-row .stButton > button:active {
     transform: scale(0.99) !important;
 }
 @media (hover: hover) and (pointer: fine) {
+    html body .stApp button[data-testid="stBaseButton-primary"]:hover,
     .submit-row .stButton > button:hover {
         background: var(--accent-2) !important;
+        background-color: var(--accent-2) !important;
+        background-image: none !important;
+    }
+    html body .stApp button[data-testid="stBaseButton-primary"]:hover *,
+    html body .stApp button[data-testid="stBaseButton-primary"]:hover p {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
     }
 }
 
@@ -692,7 +754,7 @@ if st.session_state.phase in ("idle", "error"):
                 st.rerun()
 
     st.markdown('<div class="submit-row">', unsafe_allow_html=True)
-    submit = st.button("Find order")
+    submit = st.button("Find order", type="primary")
     st.markdown("</div>", unsafe_allow_html=True)
 else:
     user_input, submit = "", False
