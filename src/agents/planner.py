@@ -80,52 +80,41 @@ def run_planner(state: GraphState) -> dict:
 
     log.info("node.enter", input_hash=hash_state(state.user_input))
 
-    # First try the deterministic rule-based tool
-    tool_result = parse_request(ParseRequestInput(
-        raw_text=state.user_input,
-        default_city="Colombo",
-    ))
-
-    if tool_result.is_ok():
-        out = tool_result.unwrap()
-        parsed = ParsedRequest(
-            budget_lkr=out.budget_lkr,
-            party_size=out.party_size,
-            cuisines=out.cuisines,
-            categories=out.categories,
-            dietary_exclude=out.dietary_exclude,
-            dietary_require=out.dietary_require,
-            spice_preference=out.spice_preference,
-            city=out.city,
+    # Primary: LLM — better at understanding natural language
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": state.user_input},
+    ]
+    if state.errors:
+        last_err = state.errors[-1]
+        messages.append({
+            "role": "user",
+            "content": f"Previous attempt failed: {last_err.message}. Try again carefully.",
+        })
+    try:
+        parsed = invoke_structured(
+            llm=get_llm(temperature=0.1),
+            messages=messages,
+            schema=ParsedRequest,
+            trace_id=state.trace_id,
+            agent="planner",
+            max_retries=2,
         )
-    else:
-        # Fall back to LLM
-        log.info("planner.tool_failed_using_llm", reason=tool_result.unwrap().message)
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": state.user_input},
-        ]
-        if state.errors:
-            last_err = state.errors[-1]
-            messages.append({
-                "role": "user",
-                "content": f"Previous attempt failed: {last_err.message}. Try again carefully.",
-            })
-        try:
-            parsed = invoke_structured(
-                llm=get_llm(temperature=0.1),
-                messages=messages,
-                schema=ParsedRequest,
-                trace_id=state.trace_id,
-                agent="planner",
-                max_retries=2,
-            )
-        except ValueError as exc:
+    except ValueError:
+        # Fallback: deterministic regex tool — injection-safe, no LLM needed
+        log.info("planner.llm_failed_using_regex_fallback")
+        tool_result = parse_request(ParseRequestInput(
+            raw_text=state.user_input,
+            default_city="Colombo",
+        ))
+        if tool_result.is_ok():
+            parsed = ParsedRequest(**tool_result.unwrap().model_dump())
+        else:
             latency_ms = int((time.monotonic() - t0) * 1000)
             error = AgentError(
                 agent="planner",
-                kind="llm_refusal",
-                message=str(exc),
+                kind="parse_failure",
+                message="Both LLM and regex parser failed to extract a valid request.",
                 recoverable=True,
             )
             log.error("node.exit", status="error", latency_ms=latency_ms)
