@@ -152,10 +152,12 @@ def parse_request(inp: ParseRequestInput) -> Result[ParseRequestOutput, ToolErro
 
     if len(text) > 5000:
         return Err(ToolError(tool="parse_request", kind="validation", message="Input too long"))
+    if len(text) < 3:
+        return Err(ToolError(tool="parse_request", kind="validation", message="Request is too short to parse"))
 
     budget = _extract_budget(text)
     if budget is None or budget <= 0:
-        return Err(ToolError(tool="parse_request", kind="validation", message="Could not extract a valid budget from the request"))
+        budget = 99999.0  # no budget stated - no limit
 
     party_size = _extract_party_size(text)
     cuisines = _extract_cuisines(text)
