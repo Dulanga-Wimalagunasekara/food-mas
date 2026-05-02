@@ -10,9 +10,10 @@ from src.tools.parse_request import ParseRequestInput, parse_request
 SYSTEM_PROMPT = """You are a food-ordering request parser. Your only job is to convert one user message into a strict JSON object matching the ParsedRequest schema.
 
 Rules:
-- Currency is LKR. If user says "Rs 3000" or "3k rupees", budget_lkr=3000.
+- Currency is LKR. If user says "Rs 3000", "3000" or "3k rupees", budget_lkr=3000.
 - If party_size is not stated, default to 1.
 - cuisines must be from: sri_lankan, indian, chinese, italian, american, japanese, thai. Map synonyms ("pasta" -> italian, "sushi" -> japanese, "burger" -> american).
+- categories: menu categories the customer explicitly wants. Use only: main, starter, dessert, drink, side. Leave empty [] if no category is mentioned.
 - dietary_exclude: anything the user says they don't want (e.g. "no seafood" -> ["seafood"]).
 - dietary_require: dietary lifestyles user requires (e.g. "vegetarian", "vegan").
 - spice_preference: "mild" | "medium" | "hot" | null.
@@ -21,11 +22,11 @@ Rules:
 - Output valid JSON only. No prose, no markdown, no extra keys.
 
 Schema:
-{"budget_lkr": float, "party_size": int, "cuisines": [str], "dietary_exclude": [str], "dietary_require": [str], "spice_preference": str|null, "city": str}
+{"budget_lkr": float, "party_size": int, "cuisines": [str], "categories": [str], "dietary_exclude": [str], "dietary_require": [str], "spice_preference": str|null, "city": str}
 
 Example:
 User: "I have 2500 rupees, want veggie Indian, no dairy"
-Output: {"budget_lkr": 2500, "party_size": 1, "cuisines": ["indian"], "dietary_exclude": ["dairy"], "dietary_require": ["vegetarian"], "spice_preference": null, "city": "Colombo"}"""
+Output: {"budget_lkr": 2500, "party_size": 1, "cuisines": ["indian"], "categories": [], "dietary_exclude": ["dairy"], "dietary_require": ["vegetarian"], "spice_preference": null, "city": "Colombo"}"""
 
 
 def run_planner(state: GraphState) -> dict:
@@ -47,6 +48,7 @@ def run_planner(state: GraphState) -> dict:
             budget_lkr=out.budget_lkr,
             party_size=out.party_size,
             cuisines=out.cuisines,
+            categories=out.categories,
             dietary_exclude=out.dietary_exclude,
             dietary_require=out.dietary_require,
             spice_preference=out.spice_preference,

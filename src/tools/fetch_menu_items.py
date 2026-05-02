@@ -21,6 +21,7 @@ class MenuItemRecord(BaseModel):
 class FetchMenuItemsInput(BaseModel):
     restaurant_id: int
     dietary_exclude: list[str] = []
+    categories: list[str] = []
 
 
 class FetchMenuItemsOutput(BaseModel):
@@ -63,6 +64,7 @@ def fetch_menu_items(inp: FetchMenuItemsInput) -> Result[FetchMenuItemsOutput, T
             rows = session.execute(stmt).scalars().all()
 
             exclude_set = set(inp.dietary_exclude)
+            category_filter = set(inp.categories)
             items = [
                 MenuItemRecord(
                     id=row.id,
@@ -77,6 +79,7 @@ def fetch_menu_items(inp: FetchMenuItemsInput) -> Result[FetchMenuItemsOutput, T
                 if not exclude_set.intersection(
                     row.dietary_tags if isinstance(row.dietary_tags, list) else []
                 )
+                and (not category_filter or row.category in category_filter)
             ]
 
         return Ok(FetchMenuItemsOutput(items=items))

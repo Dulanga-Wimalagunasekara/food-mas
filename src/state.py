@@ -8,6 +8,7 @@ class ParsedRequest(BaseModel):
     budget_lkr: float
     party_size: int
     cuisines: list[str]
+    categories: list[str] = []
     dietary_exclude: list[str]
     dietary_require: list[str]
     spice_preference: Optional[str]

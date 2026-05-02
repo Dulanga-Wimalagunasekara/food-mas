@@ -88,10 +88,38 @@ class ParseRequestInput(BaseModel):
     default_city: str = "Colombo"
 
 
+CATEGORY_MAP: dict[str, str] = {
+    "dessert": "dessert",
+    "desserts": "dessert",
+    "sweet": "dessert",
+    "sweets": "dessert",
+    "starter": "starter",
+    "starters": "starter",
+    "appetizer": "starter",
+    "appetizers": "starter",
+    "entree": "starter",
+    "drink": "drink",
+    "drinks": "drink",
+    "beverage": "drink",
+    "beverages": "drink",
+    "juice": "drink",
+    "main": "main",
+    "mains": "main",
+    "main course": "main",
+    "main dish": "main",
+    "main dishes": "main",
+    "side": "side",
+    "sides": "side",
+    "side dish": "side",
+    "side dishes": "side",
+}
+
+
 class ParseRequestOutput(BaseModel):
     budget_lkr: float
     party_size: int
     cuisines: list[str]
+    categories: list[str]
     dietary_exclude: list[str]
     dietary_require: list[str]
     spice_preference: Optional[str]
@@ -131,6 +159,7 @@ def parse_request(inp: ParseRequestInput) -> Result[ParseRequestOutput, ToolErro
 
     party_size = _extract_party_size(text)
     cuisines = _extract_cuisines(text)
+    categories = _extract_categories(text)
     dietary_exclude = _extract_dietary_exclude(text)
     dietary_require = _extract_dietary_require(text)
     spice = _extract_spice(text)
@@ -140,6 +169,7 @@ def parse_request(inp: ParseRequestInput) -> Result[ParseRequestOutput, ToolErro
         budget_lkr=budget,
         party_size=party_size,
         cuisines=cuisines,
+        categories=categories,
         dietary_exclude=dietary_exclude,
         dietary_require=dietary_require,
         spice_preference=spice,
@@ -230,6 +260,14 @@ def _extract_spice(text: str) -> Optional[str]:
         if keyword in text:
             return level
     return None
+
+
+def _extract_categories(text: str) -> list[str]:
+    found: set[str] = set()
+    for keyword, category in CATEGORY_MAP.items():
+        if keyword in text:
+            found.add(category)
+    return sorted(found)
 
 
 def _extract_city(text: str, default: str) -> str:

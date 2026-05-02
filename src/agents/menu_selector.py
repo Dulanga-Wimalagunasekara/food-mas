@@ -12,8 +12,8 @@ from src.tools.fetch_menu_items import FetchMenuItemsInput, fetch_menu_items
 
 SYSTEM_PROMPT = """You are a menu selection assistant. Select menu items from the provided list that:
 1. Fit within the remaining budget (budget minus delivery fee).
-2. Include at least one "main" category item per person in the party.
-3. Respect all dietary exclusions — do NOT select items with excluded tags.
+2. Respect all dietary exclusions — do NOT select items with excluded tags.
+3. Select only what the customer asked for. If a category filter is specified, honour it exactly.
 4. Maximise variety and satisfaction within budget.
 
 Output a JSON object with key "selections" containing an array of selected items.
@@ -60,6 +60,7 @@ def run_menu_selector(state: GraphState) -> dict:
     tool_result = fetch_menu_items(FetchMenuItemsInput(
         restaurant_id=restaurant_id,
         dietary_exclude=parsed.dietary_exclude,
+        categories=parsed.categories,
     ))
 
     if not tool_result.is_ok():
@@ -86,9 +87,11 @@ def run_menu_selector(state: GraphState) -> dict:
         for i in available
     ]
 
+    category_note = f"Category filter (select ONLY these categories): {parsed.categories}. " if parsed.categories else ""
     prompt_context = (
         f"Budget remaining after delivery: {spendable:.2f} LKR. "
-        f"Party size: {parsed.party_size} (need {parsed.party_size} main dishes minimum). "
+        f"Party size: {parsed.party_size}. "
+        f"{category_note}"
         f"Dietary exclusions: {parsed.dietary_exclude}. "
         f"Dietary requirements: {parsed.dietary_require}. "
         f"Spice preference: {parsed.spice_preference}."
@@ -131,26 +134,24 @@ def run_menu_selector(state: GraphState) -> dict:
                 ))
 
             actual_total = sum(i.price * i.quantity for i in verified)
-            if actual_total <= spendable and len(verified) >= parsed.party_size:
+            if actual_total <= spendable and verified:
                 selected_items = verified
                 break
 
-            # Budget exceeded or not enough mains — retry with tighter instruction
+            # Budget exceeded or no valid items — retry with tighter instruction
         except ValueError:
             pass
 
     if not selected_items:
-        # Greedy fallback: one main per person, cheapest that fit
-        mains = sorted(
-            [i for i in available if i.category == "main"],
-            key=lambda x: x.price,
-        )
-        for item in mains[:parsed.party_size]:
+        # Greedy fallback: cheapest items that fit within budget
+        candidates = sorted(available, key=lambda x: x.price)
+        for item in candidates:
             if sum(s.price * s.quantity for s in selected_items) + item.price <= spendable:
                 selected_items.append(SelectedItem(
                     item_id=item.id, name=item.name, price=item.price,
                     quantity=1, dietary_tags=item.dietary_tags,
                 ))
+                break
 
     latency_ms = int((time.monotonic() - t0) * 1000)
     log.info("node.exit", status="ok", item_count=len(selected_items), latency_ms=latency_ms,

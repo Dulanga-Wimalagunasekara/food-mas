@@ -14,7 +14,7 @@ def _make_state(**kwargs) -> GraphState:
         trace_id="test-selector",
         user_input="test",
         parsed=ParsedRequest(
-            budget_lkr=3000.0, party_size=1, cuisines=["sri_lankan"],
+            budget_lkr=3000.0, party_size=1, cuisines=["sri_lankan"], categories=[],
             dietary_exclude=[], dietary_require=[], spice_preference=None, city="Colombo",
         ),
         candidates=[RestaurantCandidate(
@@ -94,7 +94,7 @@ def test_selector_filters_excluded_dietary_tags() -> None:
         ])
 
         state = _make_state(parsed=ParsedRequest(
-            budget_lkr=3000.0, party_size=1, cuisines=["sri_lankan"],
+            budget_lkr=3000.0, party_size=1, cuisines=["sri_lankan"], categories=[],
             dietary_exclude=["spicy"], dietary_require=[], spice_preference=None, city="Colombo",
         ))
         result = run_menu_selector(state)
@@ -142,5 +142,5 @@ def test_selector_greedy_fallback_on_llm_failure() -> None:
         state = _make_state()
         result = run_menu_selector(state)
 
-    # Greedy fallback should still return at least one main
+    # Greedy fallback should still return at least one item
     assert len(result["selected_items"]) >= 1
