@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from pydantic import BaseModel
 
 from src.llm import get_llm, invoke_structured
 from src.logging_setup import TraceWriter, hash_state, node_logger
-from src.state import AgentError, GraphState, SelectedItem
+from src.state import AgentError, GraphState, ParsedRequest, RestaurantCandidate, SelectedItem
 from src.tools.fetch_menu_items import FetchMenuItemsInput, fetch_menu_items
 
 SYSTEM_PROMPT = """You are a menu selection assistant. Select menu items from the provided list that:
@@ -31,55 +30,30 @@ class SelectionList(BaseModel):
     selections: list[SelectedItem]
 
 
-def run_menu_selector(state: GraphState) -> dict:
-    log = node_logger(state.trace_id, "menu_selector", "menu_selector_node")
-    trace = TraceWriter(state.trace_id)
-    t0 = time.monotonic()
-
-    if state.parsed is None or state.chosen_restaurant_id is None:
-        return {"selected_items": [], "errors": [AgentError(
-            agent="menu_selector", kind="validation",
-            message="Missing parsed request or restaurant selection", recoverable=False,
-        )]}
-
-    log.info("node.enter", input_hash=hash_state({
-        "restaurant_id": state.chosen_restaurant_id,
-        "budget": state.parsed.budget_lkr,
-    }))
-
-    parsed = state.parsed
-    restaurant_id = state.chosen_restaurant_id
-
-    # Find delivery fee for chosen restaurant
+def _select_items_for(
+    restaurant_id: int,
+    sub_req: ParsedRequest,
+    candidates: list[RestaurantCandidate],
+    trace_id: str,
+) -> list[SelectedItem]:
+    """Select menu items from a single restaurant for the given sub-request."""
     delivery_fee = next(
-        (c.delivery_fee for c in state.candidates if c.id == restaurant_id),
-        150.0,
+        (c.delivery_fee for c in candidates if c.id == restaurant_id), 150.0
     )
-    spendable = parsed.budget_lkr - delivery_fee
+    spendable = sub_req.budget_lkr - delivery_fee
 
     tool_result = fetch_menu_items(FetchMenuItemsInput(
         restaurant_id=restaurant_id,
-        dietary_exclude=parsed.dietary_exclude,
-        categories=parsed.categories,
+        dietary_exclude=sub_req.dietary_exclude,
+        categories=sub_req.categories,
     ))
 
     if not tool_result.is_ok():
-        err = tool_result.unwrap()
-        error = AgentError(
-            agent="menu_selector", kind="tool_failure",
-            message=err.message, recoverable=True,
-        )
-        latency_ms = int((time.monotonic() - t0) * 1000)
-        log.error("node.exit", status="tool_error", latency_ms=latency_ms)
-        trace.write({"node": "menu_selector", "status": "tool_error", "latency_ms": latency_ms})
-        return {"selected_items": [], "errors": [error]}
+        return []
 
     available = tool_result.unwrap().items
     if not available:
-        latency_ms = int((time.monotonic() - t0) * 1000)
-        log.info("node.exit", status="no_items", latency_ms=latency_ms)
-        trace.write({"node": "menu_selector", "status": "no_items", "latency_ms": latency_ms})
-        return {"selected_items": []}
+        return []
 
     menu_payload = [
         {"item_id": i.id, "name": i.name, "price": i.price, "category": i.category,
@@ -87,18 +61,26 @@ def run_menu_selector(state: GraphState) -> dict:
         for i in available
     ]
 
-    category_note = f"Category filter (select ONLY these categories): {parsed.categories}. " if parsed.categories else ""
+    category_note = (
+        f"Category filter (select ONLY these categories): {sub_req.categories}. "
+        if sub_req.categories else ""
+    )
     prompt_context = (
         f"Budget remaining after delivery: {spendable:.2f} LKR. "
-        f"Party size: {parsed.party_size}. "
+        f"Party size: {sub_req.party_size}. "
         f"{category_note}"
-        f"Dietary exclusions: {parsed.dietary_exclude}. "
-        f"Dietary requirements: {parsed.dietary_require}. "
-        f"Spice preference: {parsed.spice_preference}."
+        f"Dietary exclusions: {sub_req.dietary_exclude}. "
+        f"Dietary requirements: {sub_req.dietary_require}. "
+        f"Spice preference: {sub_req.spice_preference}."
     )
 
-    selected_items: list[SelectedItem] = []
-    for attempt in range(3):
+    valid_ids = {i.id for i in available}
+    price_map = {i.id: i.price for i in available}
+    tag_map = {i.id: i.dietary_tags for i in available}
+    exclude_set = set(sub_req.dietary_exclude)
+
+    selected: list[SelectedItem] = []
+    for _ in range(3):
         try:
             llm_response = invoke_structured(
                 llm=get_llm(temperature=0.3),
@@ -107,24 +89,17 @@ def run_menu_selector(state: GraphState) -> dict:
                     {"role": "user", "content": f"{prompt_context}\n\nAvailable menu: {menu_payload}"},
                 ],
                 schema=SelectionList,
-                trace_id=state.trace_id,
+                trace_id=trace_id,
                 agent="menu_selector",
                 max_retries=2,
             )
 
-            # Deterministic post-check: verify IDs exist and recalculate total
-            valid_ids = {i.id for i in available}
-            price_map = {i.id: i.price for i in available}
-            tag_map = {i.id: i.dietary_tags for i in available}
-            exclude_set = set(parsed.dietary_exclude)
-
             verified: list[SelectedItem] = []
             for sel in llm_response.selections:
                 if sel.item_id not in valid_ids:
-                    continue  # LLM hallucinated an ID — skip
+                    continue
                 if exclude_set.intersection(tag_map[sel.item_id]):
-                    continue  # dietary violation — skip
-                # Use DB price, not LLM-reported price
+                    continue
                 verified.append(SelectedItem(
                     item_id=sel.item_id,
                     name=sel.name,
@@ -135,23 +110,65 @@ def run_menu_selector(state: GraphState) -> dict:
 
             actual_total = sum(i.price * i.quantity for i in verified)
             if actual_total <= spendable and verified:
-                selected_items = verified
+                selected = verified
                 break
-
-            # Budget exceeded or no valid items — retry with tighter instruction
         except ValueError:
             pass
 
-    if not selected_items:
-        # Greedy fallback: cheapest items that fit within budget
-        candidates = sorted(available, key=lambda x: x.price)
-        for item in candidates:
-            if sum(s.price * s.quantity for s in selected_items) + item.price <= spendable:
-                selected_items.append(SelectedItem(
+    if not selected:
+        # Greedy fallback: cheapest item that fits
+        candidates_sorted = sorted(available, key=lambda x: x.price)
+        for item in candidates_sorted:
+            if sum(s.price * s.quantity for s in selected) + item.price <= spendable:
+                selected.append(SelectedItem(
                     item_id=item.id, name=item.name, price=item.price,
                     quantity=1, dietary_tags=item.dietary_tags,
                 ))
                 break
+
+    return selected
+
+
+def run_menu_selector(state: GraphState) -> dict:
+    log = node_logger(state.trace_id, "menu_selector", "menu_selector_node")
+    trace = TraceWriter(state.trace_id)
+    t0 = time.monotonic()
+
+    if state.parsed is None:
+        return {"selected_items": [], "errors": [AgentError(
+            agent="menu_selector", kind="validation",
+            message="Missing parsed request", recoverable=False,
+        )]}
+
+    #Multi-restaurant mode
+    if state.sub_requests and state.chosen_restaurant_ids:
+        all_items: list[SelectedItem] = []
+        for sub_req, rest_id in zip(state.sub_requests, state.chosen_restaurant_ids):
+            items = _select_items_for(rest_id, sub_req, state.candidates, state.trace_id)
+            all_items.extend(items)
+
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        log.info("node.exit", status="ok_multi", item_count=len(all_items), latency_ms=latency_ms,
+                 output_hash=hash_state([s.model_dump() for s in all_items]))
+        trace.write({"node": "menu_selector", "status": "ok_multi",
+                     "selected_items": [s.model_dump() for s in all_items], "latency_ms": latency_ms})
+        return {"selected_items": all_items}
+
+    #Single-restaurant mode
+    if state.chosen_restaurant_id is None:
+        return {"selected_items": [], "errors": [AgentError(
+            agent="menu_selector", kind="validation",
+            message="Missing restaurant selection", recoverable=False,
+        )]}
+
+    log.info("node.enter", input_hash=hash_state({
+        "restaurant_id": state.chosen_restaurant_id,
+        "budget": state.parsed.budget_lkr,
+    }))
+
+    selected_items = _select_items_for(
+        state.chosen_restaurant_id, state.parsed, state.candidates, state.trace_id
+    )
 
     latency_ms = int((time.monotonic() - t0) * 1000)
     log.info("node.exit", status="ok", item_count=len(selected_items), latency_ms=latency_ms,

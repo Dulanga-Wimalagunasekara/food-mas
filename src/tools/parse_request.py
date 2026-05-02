@@ -9,6 +9,7 @@ from src.tools.base import Err, Ok, Result, ToolError, tool_with_retry
 
 CUISINE_MAP: dict[str, str] = {
     "sri lankan": "sri_lankan",
+    "sri lanka": "sri_lankan",
     "sri_lankan": "sri_lankan",
     "srilankan": "sri_lankan",
     "lanka": "sri_lankan",
@@ -28,6 +29,7 @@ CUISINE_MAP: dict[str, str] = {
     "pasta": "italian",
     "risotto": "italian",
     "american": "american",
+    "america": "american",
     "burger": "american",
     "bbq": "american",
     "barbeque": "american",

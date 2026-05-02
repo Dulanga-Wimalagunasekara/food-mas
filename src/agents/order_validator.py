@@ -26,28 +26,42 @@ def run_order_validator(state: GraphState) -> dict:
     trace = TraceWriter(state.trace_id)
     t0 = time.monotonic()
 
-    if state.parsed is None or not state.selected_items or state.chosen_restaurant_id is None:
+    is_multi = bool(state.sub_requests and state.chosen_restaurant_ids)
+    has_single = state.chosen_restaurant_id is not None
+
+    if state.parsed is None or not state.selected_items or (not has_single and not is_multi):
         return {"order": None, "errors": [AgentError(
             agent="order_validator", kind="validation",
             message="Incomplete state for validation", recoverable=False,
         )]}
 
-    log.info("node.enter", input_hash=hash_state({
-        "restaurant_id": state.chosen_restaurant_id,
-        "item_count": len(state.selected_items),
-    }))
-
     parsed = state.parsed
-    restaurant_id = state.chosen_restaurant_id
 
-    restaurant_name = next(
-        (c.name for c in state.candidates if c.id == restaurant_id),
-        f"Restaurant #{restaurant_id}",
-    )
-    delivery_fee = next(
-        (c.delivery_fee for c in state.candidates if c.id == restaurant_id),
-        150.0,
-    )
+    if is_multi:
+        restaurant_id = 0
+        restaurant_name = "Multiple Restaurants"
+        delivery_fee = sum(
+            next((c.delivery_fee for c in state.candidates if c.id == rid), 150.0)
+            for rid in state.chosen_restaurant_ids
+        )
+        log.info("node.enter", input_hash=hash_state({
+            "restaurant_ids": state.chosen_restaurant_ids,
+            "item_count": len(state.selected_items),
+        }))
+    else:
+        restaurant_id = state.chosen_restaurant_id  # type: ignore[assignment]
+        restaurant_name = next(
+            (c.name for c in state.candidates if c.id == restaurant_id),
+            f"Restaurant #{restaurant_id}",
+        )
+        delivery_fee = next(
+            (c.delivery_fee for c in state.candidates if c.id == restaurant_id),
+            150.0,
+        )
+        log.info("node.enter", input_hash=hash_state({
+            "restaurant_id": restaurant_id,
+            "item_count": len(state.selected_items),
+        }))
 
     tool_result = validate_order(ValidateOrderInput(
         restaurant_id=restaurant_id,

@@ -56,8 +56,10 @@ class GraphState(BaseModel):
     trace_id: str
     user_input: str
     parsed: Optional[ParsedRequest] = None
+    sub_requests: list[ParsedRequest] = []          # set when request spans multiple restaurants
     candidates: list[RestaurantCandidate] = []
-    chosen_restaurant_id: Optional[int] = None
+    chosen_restaurant_id: Optional[int] = None      # single-restaurant mode
+    chosen_restaurant_ids: list[int] = []           # multi-restaurant mode
     selected_items: list[SelectedItem] = []
     order: Optional[OrderSummary] = None
     errors: Annotated[list[AgentError], operator.add] = []
