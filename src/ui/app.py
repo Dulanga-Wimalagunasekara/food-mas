@@ -1,6 +1,7 @@
 """FoodMAS — light Streamlit UI."""
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from typing import Any
@@ -539,6 +540,26 @@ html body .stApp button[data-testid="stBaseButton-primary"]:active,
     }
 }
 
+/* ── Loading state ── */
+.loading-state {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 0 0.5rem;
+    color: var(--ink-2);
+    font-size: 0.9rem;
+}
+.loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--edge-1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ── Streamlit warning ── */
 .stAlert { border-radius: var(--r-md) !important; }
 
@@ -582,6 +603,31 @@ html body .stApp button[data-testid="stBaseButton-primary"]:active,
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+_FOOD_KEYWORDS = [
+    "lkr", "rs ", "rs.", "rupee", "budget",
+    "food", "eat", "order", "restaurant", "meal", "dinner", "lunch", "breakfast",
+    "cuisine", "dish", "menu", "hungry", "drink",
+    "sri lankan", "srilankan", "indian", "chinese", "italian", "american", "japanese", "thai",
+    "curry", "rice", "pizza", "burger", "sushi", "pasta", "noodle", "biryani",
+    "kottu", "hopper", "roti", "sandwich", "bbq", "seafood",
+    "vegetarian", "vegan", "halal", "spicy", "mild",
+    "for two", "for 2", "for three", "for one", "for 3", "people",
+]
+
+
+def _is_food_query(text: str) -> bool:
+    """Return False when the query contains no recognisable food-ordering signals."""
+    t = text.lower().strip()
+    if len(t) < 3:
+        return False
+    if any(kw in t for kw in _FOOD_KEYWORDS):
+        return True
+    # A 3+-digit number is likely a budget amount
+    if re.search(r'\d{3,}', text):
+        return True
+    return False
+
 
 PIPELINE_STEPS = [
     ("planner",           "🔮", "Understanding",  "Decoding your craving"),
@@ -767,11 +813,25 @@ request_text: str | None = (
 )
 
 if request_text and st.session_state.phase in ("idle", "error"):
+    if not _is_food_query(request_text):
+        st.session_state.phase = "error"
+        st.session_state.pipeline_states = None
+        result_slot.markdown("""
+<div class="err-box">
+  🤔 &nbsp;That doesn't look like a food order.<br/>
+  Try something like: <em>"Spicy Sri Lankan for 2, LKR 2500"</em>
+</div>""", unsafe_allow_html=True)
+        st.rerun()
+
     tid = str(uuid.uuid4())[:8]
     agent_states: dict[str, str] = {k: "pending" for k in STEP_KEYS}
 
     pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
-    result_slot.empty()
+    result_slot.markdown("""
+<div class="loading-state">
+  <div class="loading-spinner"></div>
+  <span>Agents are finding the best match for you&hellip;</span>
+</div>""", unsafe_allow_html=True)
 
     from src.graph import build_graph
     from src.state import GraphState
@@ -821,22 +881,21 @@ if request_text and st.session_state.phase in ("idle", "error"):
             st.session_state.phase = "error"
             result_slot.markdown("""
 <div class="err-box">
-  😕 &nbsp;No match found for your request.<br/>
+  😕 &nbsp;We couldn't find anything that matches your request.<br/>
   Try a higher budget, a different cuisine, or fewer dietary restrictions.
 </div>""", unsafe_allow_html=True)
             st.rerun()
 
-    except Exception as exc:
+    except Exception:
         for k in STEP_KEYS:
             if agent_states.get(k) in ("pending", "active"):
                 agent_states[k] = "error"
         pipeline_slot.markdown(_pipeline_html(agent_states), unsafe_allow_html=True)
         st.session_state.phase = "error"
         st.session_state.pipeline_states = agent_states
-        result_slot.markdown(f"""
+        result_slot.markdown("""
 <div class="err-box">
-  Something went wrong — please try again.<br/>
-  <span style="color:#6B3030">{exc}</span>
+  Something went wrong — please try again in a moment.
 </div>""", unsafe_allow_html=True)
         st.rerun()
 
