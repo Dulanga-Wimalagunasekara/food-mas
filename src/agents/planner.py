@@ -40,7 +40,10 @@ User: "something spicy from Sri Lanka and a dessert from Italy"
 Output: {"budget_lkr": 99999, "party_size": 1, "cuisines": ["sri_lankan", "italian"], "categories": [], "dietary_exclude": [], "dietary_require": [], "spice_preference": "hot", "city": "Colombo", "sub_requests": [{"cuisines": ["sri_lankan"], "categories": []}, {"cuisines": ["italian"], "categories": ["dessert"]}]}
 
 User: "main dish from Sri Lanka and drinks from Japan"
-Output: {"budget_lkr": 99999, "party_size": 1, "cuisines": ["sri_lankan", "japanese"], "categories": [], "dietary_exclude": [], "dietary_require": [], "spice_preference": null, "city": "Colombo", "sub_requests": [{"cuisines": ["sri_lankan"], "categories": ["main"]}, {"cuisines": ["japanese"], "categories": ["drink"]}]}"""
+Output: {"budget_lkr": 99999, "party_size": 1, "cuisines": ["sri_lankan", "japanese"], "categories": [], "dietary_exclude": [], "dietary_require": [], "spice_preference": null, "city": "Colombo", "sub_requests": [{"cuisines": ["sri_lankan"], "categories": ["main"]}, {"cuisines": ["japanese"], "categories": ["drink"]}]}
+
+User: "a main from Sri Lanka and a dessert from Japan"
+Output: {"budget_lkr": 99999, "party_size": 1, "cuisines": ["sri_lankan", "japanese"], "categories": [], "dietary_exclude": [], "dietary_require": [], "spice_preference": null, "city": "Colombo", "sub_requests": [{"cuisines": ["sri_lankan"], "categories": ["main"]}, {"cuisines": ["japanese"], "categories": ["dessert"]}]}"""
 
 
 class SubRequestSpec(BaseModel):
@@ -145,11 +148,11 @@ def run_planner(state: GraphState) -> dict:
             max_retries=2,
         )
         parsed = ParsedRequest(**{k: v for k, v in llm_out.model_dump().items() if k != "sub_requests"})
-        sub_requests = (
-            _build_sub_requests(llm_out.sub_requests, parsed)
-            if len(llm_out.sub_requests) >= 2
-            else []
-        )
+        if len(llm_out.sub_requests) >= 2:
+            sub_requests = _build_sub_requests(llm_out.sub_requests, parsed)
+        else:
+            # LLM missed multi-restaurant intent — try regex as a second pass
+            sub_requests = _detect_sub_requests_regex(state.user_input, parsed)
     except ValueError:
         # Fallback: deterministic regex tool — injection-safe, no LLM needed
         log.info("planner.llm_failed_using_regex_fallback")

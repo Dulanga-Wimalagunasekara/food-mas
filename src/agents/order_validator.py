@@ -99,10 +99,13 @@ def run_order_validator(state: GraphState) -> dict:
     )
 
     budget_status = "within" if order.within_budget else "over"
-    cost_line = (
-        f"Your order totals LKR {order.total:,.0f} ({budget_status} your "
-        f"LKR {parsed.budget_lkr:,.0f} budget), including delivery and tax."
-    )
+    if parsed.budget_lkr < 99999:
+        cost_line = (
+            f"Your order totals LKR {order.total:,.0f} ({budget_status} your "
+            f"LKR {parsed.budget_lkr:,.0f} budget), including delivery and tax."
+        )
+    else:
+        cost_line = f"Your order totals LKR {order.total:,.0f}, including delivery and tax."
 
     try:
         llm_response = invoke_structured(
