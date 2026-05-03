@@ -13,7 +13,8 @@ SYSTEM_PROMPT = """You are a menu selection assistant. Select menu items from th
 1. Fit within the remaining budget (budget minus delivery fee).
 2. Respect all dietary exclusions — do NOT select items with excluded tags.
 3. Select only what the customer asked for. If a category filter is specified, honour it exactly.
-4. Maximise variety and satisfaction within budget.
+4. Use the item's description to match flavour and texture cues from the user's request (e.g. "spicy and sour", "creamy", "grilled", "light"). Prefer items whose description aligns with those cues.
+5. Maximise variety and satisfaction within budget.
 
 Output a JSON object with key "selections" containing an array of selected items.
 Each item must have: item_id (int), name (str), price (float), quantity (int), dietary_tags (list of str).
@@ -35,6 +36,7 @@ def _select_items_for(
     sub_req: ParsedRequest,
     candidates: list[RestaurantCandidate],
     trace_id: str,
+    user_input: str = "",
 ) -> list[SelectedItem]:
     """Select menu items from a single restaurant for the given sub-request."""
     restaurant_name = next((c.name for c in candidates if c.id == restaurant_id), "")
@@ -57,8 +59,8 @@ def _select_items_for(
         return []
 
     menu_payload = [
-        {"item_id": i.id, "name": i.name, "price": i.price, "category": i.category,
-         "dietary_tags": i.dietary_tags}
+        {"item_id": i.id, "name": i.name, "description": i.description,
+         "price": i.price, "category": i.category, "dietary_tags": i.dietary_tags}
         for i in available
     ]
 
@@ -66,13 +68,18 @@ def _select_items_for(
         f"Category filter (select ONLY these categories): {sub_req.categories}. "
         if sub_req.categories else ""
     )
+    user_input_note = (
+        f"User's original request (use for flavour/texture matching against descriptions): \"{user_input}\". "
+        if user_input else ""
+    )
     prompt_context = (
         f"Budget remaining after delivery: {spendable:.2f} LKR. "
         f"Party size: {sub_req.party_size}. "
         f"{category_note}"
         f"Dietary exclusions: {sub_req.dietary_exclude}. "
         f"Dietary requirements: {sub_req.dietary_require}. "
-        f"Spice preference: {sub_req.spice_preference}."
+        f"Spice preference: {sub_req.spice_preference}. "
+        f"{user_input_note}"
     )
 
     valid_ids = {i.id for i in available}
@@ -147,7 +154,7 @@ def run_menu_selector(state: GraphState) -> dict:
     if state.sub_requests and state.chosen_restaurant_ids:
         all_items: list[SelectedItem] = []
         for sub_req, rest_id in zip(state.sub_requests, state.chosen_restaurant_ids):
-            items = _select_items_for(rest_id, sub_req, state.candidates, state.trace_id)
+            items = _select_items_for(rest_id, sub_req, state.candidates, state.trace_id, state.user_input)
             all_items.extend(items)
 
         latency_ms = int((time.monotonic() - t0) * 1000)
@@ -170,7 +177,7 @@ def run_menu_selector(state: GraphState) -> dict:
     }))
 
     selected_items = _select_items_for(
-        state.chosen_restaurant_id, state.parsed, state.candidates, state.trace_id
+        state.chosen_restaurant_id, state.parsed, state.candidates, state.trace_id, state.user_input
     )
 
     latency_ms = int((time.monotonic() - t0) * 1000)
